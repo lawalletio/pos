@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 import Navbar from '@/components/shared/Navbar'
 import NostrLogin from '@/components/shared/NostrLogin'
 import { useNostrStore } from '@/stores/nostr'
@@ -139,7 +140,7 @@ export default function ProductEditPage() {
       const backHref = existingProduct.stallId ? `/admin/stalls/${existingProduct.stallId}` : '/admin/stalls'
       router.replace(backHref)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete')
     } finally {
       setDeleting(false)
     }

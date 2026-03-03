@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import Navbar from '@/components/shared/Navbar'
 import NostrLogin from '@/components/shared/NostrLogin'
 import ProductCard from '@/components/pos/ProductCard'
@@ -181,7 +182,7 @@ export default function StallDetailPage() {
       }, ndk)
       router.replace('/admin/stalls')
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete')
     } finally {
       setDeleting(false)
     }
@@ -197,7 +198,7 @@ export default function StallDetailPage() {
       const cats = productCategories.get(product.id) ?? []
       await publishProduct(updated, cats, ndk)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update availability')
+      toast.error(err instanceof Error ? err.message : 'Failed to update availability')
     }
   }
 
@@ -213,7 +214,7 @@ export default function StallDetailPage() {
         content: 'deleted',
       }, ndk)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete product')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete product')
     }
   }
 
@@ -248,10 +249,10 @@ export default function StallDetailPage() {
         await publishProduct(p, cats, ndk)
       }
 
-      alert(`Imported ${converted.products.length} products into stall "${converted.stall.name}"`)
+      toast.success(`Imported ${converted.products.length} products into stall "${converted.stall.name}"`)
       router.replace(`/admin/stalls/${converted.stall.id}`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Import failed')
+      toast.error(err instanceof Error ? err.message : 'Import failed')
     } finally {
       setImporting(false)
       e.target.value = ''
