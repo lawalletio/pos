@@ -6,7 +6,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useCurrencyStore } from '@/stores/currency'
 import { DEFAULT_RELAYS } from '@/config/constants'
 
-const APP_VERSION = '0.1.0'
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
