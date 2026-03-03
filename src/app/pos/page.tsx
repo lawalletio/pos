@@ -79,7 +79,8 @@ export default function POSPage() {
     if (cents === 0) return
     const orderId = `free-${Date.now()}`
     usePOSStore.getState().setOrderId(orderId)
-    router.push(`/pos/${orderId}?amount=${cents}&currency=${selectedCurrency}`)
+    const amount = selectedCurrency === 'SAT' ? cents : cents / 100
+    router.push(`/pos/${orderId}?amount=${amount}&currency=${selectedCurrency}`)
   }, [cents, selectedCurrency, router])
 
   const itemCount = useMemo(() => getItemCount(), [cart])

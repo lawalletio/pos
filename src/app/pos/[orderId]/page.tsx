@@ -141,10 +141,8 @@ export default function OrderPage({ params }: Props) {
   // Compute total in sats
   const computeAmountSats = useCallback((): number => {
     if (urlAmount) {
-      const raw = parseInt(urlAmount, 10)
-      // URL passes cents for fiat currencies, sats for SAT
-      const amount = urlCurrency === 'SAT' ? raw : raw / 100
-      return urlCurrency === 'SAT' ? amount : Math.round(convertCurrency(amount, urlCurrency, 'SAT'))
+      const amount = parseFloat(urlAmount)
+      return urlCurrency === 'SAT' ? Math.round(amount) : Math.round(convertCurrency(amount, urlCurrency, 'SAT'))
     }
     const cartTotal = getTotal() // in product currency (SAT assumed for now)
     return Math.max(1, Math.round(cartTotal))
