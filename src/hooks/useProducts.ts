@@ -34,17 +34,18 @@ export function useProducts(merchantPubkey: string | null, stallId?: string) {
         // 1. Load from cache immediately (stale-while-revalidate)
         const cached = await getFromCache(merchantPubkey)
         if (!stopped && cached.products.length > 0) {
+          // Migrate legacy cached products that may not have `categories`
+          const migrated = cached.products.map((p) =>
+            p.categories ? p : { ...p, categories: [] }
+          )
           const filtered = stallId
-            ? cached.products.filter((p) => p.stallId === stallId)
-            : cached.products
+            ? migrated.filter((p) => p.stallId === stallId)
+            : migrated
           setProducts(filtered)
 
-          // Re-derive categories from cached products
+          // Derive categories from cached products
           const cats = new Set<string>()
-          filtered.forEach((p) => {
-            // categories may be stored in product specs or as a tag placeholder
-            // We'll re-derive when relay events arrive; for now show cached
-          })
+          filtered.forEach((p) => p.categories?.forEach((c) => cats.add(c)))
           if (cats.size > 0) setCategories(Array.from(cats))
 
           setIsLoading(false)

@@ -41,6 +41,10 @@ export function parseProductEvent(event: NDKEvent): Product | null {
       value: String(s[1] ?? ''),
     }))
 
+    const categories = event.tags
+      .filter((t) => t[0] === 't' && t[1])
+      .map((t) => t[1] as string)
+
     return {
       id: dTag,
       stallId: String(content.stall_id ?? ''),
@@ -52,6 +56,7 @@ export function parseProductEvent(event: NDKEvent): Product | null {
       quantity: content.quantity !== undefined ? Number(content.quantity) : -1,
       specs,
       shipping: Array.isArray(content.shipping) ? content.shipping.map(String) : [],
+      categories,
       pubkey: event.pubkey,
       createdAt: event.created_at,
     }

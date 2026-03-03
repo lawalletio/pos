@@ -15,6 +15,7 @@ export interface Product {
   quantity: number    // -1 = unlimited
   specs: ProductSpec[]
   shipping: string[]  // shipping option ids
+  categories: string[] // from NIP-15 event `t` tags
   pubkey?: string
   createdAt?: number
 }

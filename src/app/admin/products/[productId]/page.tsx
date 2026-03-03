@@ -106,6 +106,7 @@ export default function ProductEditPage() {
         quantity: form.quantity === '' ? -1 : Number(form.quantity),
         specs: existingProduct?.specs ?? [],
         shipping: existingProduct?.shipping ?? [],
+        categories: existingProduct?.categories ?? categories,
       }
 
       await publishProduct(product, categories, ndk)

@@ -50,11 +50,7 @@ export default function MenuView({
 
     // Category filter
     if (selectedCategory) {
-      list = list.filter((p) =>
-        p.specs?.some(
-          (s) => s.spec.toLowerCase() === 't' && s.value === selectedCategory
-        )
-      )
+      list = list.filter((p) => p.categories.includes(selectedCategory))
     }
 
     // Text search (name)

@@ -65,6 +65,7 @@ export function convertOldMenuToNIP15(
       quantity: -1,
       specs: [],
       shipping: [],
+      categories: [categoryName],
     }
   })
 
