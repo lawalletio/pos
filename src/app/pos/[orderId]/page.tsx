@@ -101,6 +101,11 @@ export default function OrderPage({ params }: Props) {
   const startVerifyPolling = useCallback((url: string, sats: number) => {
     stopVerifyPolling()
     verifyIntervalRef.current = setInterval(async () => {
+      // Don't poll if already confirmed
+      if (payStatus === 'confirmed') {
+        stopVerifyPolling()
+        return
+      }
       try {
         const res = await fetch('/api/verify', {
           method: 'POST',
@@ -110,6 +115,7 @@ export default function OrderPage({ params }: Props) {
         const data = await res.json()
         if (data.settled) {
           stopVerifyPolling()
+          // forceConfirm has its own guard against double confirmation
           forceConfirm({
             id: 'verify-poll-' + Date.now(),
             pubkey: '',
@@ -123,7 +129,7 @@ export default function OrderPage({ params }: Props) {
         // Silent fail — will retry next interval
       }
     }, 3000)
-  }, [stopVerifyPolling, forceConfirm])
+  }, [stopVerifyPolling, forceConfirm, payStatus])
 
   const { isAvailable: nfcAvailable, isReading: nfcReading, startReading, stopReading } = useNFC()
   const { isPrintAvailable, print } = usePrint()
@@ -326,7 +332,7 @@ export default function OrderPage({ params }: Props) {
 
   // Force check payment via LUD-21 verify
   const forceCheck = useCallback(async () => {
-    if (forceChecking) return
+    if (forceChecking || payStatus === 'confirmed') return
     setForceChecking(true)
     try {
       if (verifyUrl) {

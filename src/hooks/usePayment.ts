@@ -42,6 +42,7 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
   const [receipt, setReceipt] = useState<ZapReceipt | null>(null)
   const subRef = useRef<NostrSubscription | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const confirmedRef = useRef(false) // Guard against double confirmation
 
   const cleanup = useCallback(() => {
     if (subRef.current) {
@@ -55,6 +56,7 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
   }, [])
 
   const reset = useCallback(() => {
+    confirmedRef.current = false
     cleanup()
     setStatus('idle')
     setReceipt(null)
@@ -72,6 +74,7 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
 
       if (!orderId) return
 
+      confirmedRef.current = false
       cleanup()
       setStatus('waiting')
       setReceipt(null)
@@ -161,6 +164,13 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
           createdAt: (event.created_at as number) ?? Math.floor(Date.now() / 1000),
         }
 
+        // Guard: prevent double confirmation from NIP-57 + LUD-21 race
+        if (confirmedRef.current) {
+          console.log('[NIP-57] ⚠️ Already confirmed, ignoring duplicate')
+          return
+        }
+        confirmedRef.current = true
+
         console.log('[NIP-57] ✅ Payment confirmed via zap receipt:', zapReceipt.id.slice(0, 12))
 
         cleanup()
@@ -179,6 +189,12 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
   )
 
   const forceConfirm = useCallback((zapReceipt: ZapReceipt) => {
+    if (confirmedRef.current) {
+      console.log('[Payment] ⚠️ Already confirmed, ignoring duplicate')
+      return
+    }
+    confirmedRef.current = true
+
     cleanup()
     setReceipt(zapReceipt)
     setStatus('confirmed')
