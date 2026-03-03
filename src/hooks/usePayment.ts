@@ -17,10 +17,23 @@ export interface ZapReceipt {
   createdAt: number
 }
 
+export interface StartWaitingParams {
+  /** Recipient's pubkey (the merchant being paid) */
+  recipientPubkey: string
+  /** The LNURL server's nostrPubkey — zap receipts must be signed by this key */
+  lnurlNostrPubkey: string
+  /** The bolt11 invoice — used to match the exact payment */
+  bolt11: string
+  /** Amount in millisats — used for validation */
+  amountMsat: number
+  /** Timeout in ms (default 5 min) */
+  timeoutMs?: number
+}
+
 interface UsePaymentReturn {
   status: PaymentStatus
   receipt: ZapReceipt | null
-  startWaiting: (recipientPubkey: string, timeoutMs?: number) => void
+  startWaiting: (params: StartWaitingParams) => void
   reset: () => void
   forceConfirm: (receipt: ZapReceipt) => void
 }
@@ -49,7 +62,15 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
   }, [cleanup])
 
   const startWaiting = useCallback(
-    async (recipientPubkey: string, timeoutMs = 5 * 60 * 1000) => {
+    async (params: StartWaitingParams) => {
+      const {
+        recipientPubkey,
+        lnurlNostrPubkey,
+        bolt11,
+        amountMsat,
+        timeoutMs = 5 * 60 * 1000,
+      } = params
+
       if (!orderId) return
 
       cleanup()
@@ -65,31 +86,85 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
       try {
         const ndk = await connectNDK()
 
+        // NIP-57: Subscribe to kind:9735 (zap receipts) tagged with the recipient's pubkey
+        // The zap receipt is published by the LNURL server to the relays from the zap request
         const filter: NDKFilter = {
           kinds: [9735],
           '#p': [recipientPubkey],
           since: Math.floor(Date.now() / 1000) - 10,
         }
 
+        console.log('[NIP-57] Subscribing for zap receipts:', {
+          recipientPubkey: recipientPubkey.slice(0, 8) + '...',
+          lnurlNostrPubkey: lnurlNostrPubkey.slice(0, 8) + '...',
+          amountMsat,
+          relays: ndk.explicitRelayUrls,
+        })
+
         const sub = ndk.subscribe(filter, { closeOnEose: false })
         subRef.current = sub
 
         sub.on('event', (event: NDKEvent) => {
-          // Parse zap receipt
-          const amountTag = event.tags.find((t) => t[0] === 'amount')
+          console.log('[NIP-57] Received kind:9735 event:', event.id)
+
+          // NIP-57 Validation (Appendix F):
+
+          // 1. The zap receipt's pubkey MUST be the LNURL server's nostrPubkey
+          if (event.pubkey !== lnurlNostrPubkey) {
+            console.log('[NIP-57] Rejected: pubkey mismatch', event.pubkey, '!=', lnurlNostrPubkey)
+            return
+          }
+
+          // 2. Extract the bolt11 from the zap receipt
           const bolt11Tag = event.tags.find((t) => t[0] === 'bolt11')
-          const preimageTag = event.tags.find((t) => t[0] === 'preimage')
+          const receiptBolt11 = bolt11Tag?.[1]
+
+          // 3. Match the bolt11 to our invoice
+          if (receiptBolt11 && bolt11) {
+            // Compare bolt11 invoices (case-insensitive since bolt11 is bech32)
+            if (receiptBolt11.toLowerCase() !== bolt11.toLowerCase()) {
+              console.log('[NIP-57] Rejected: bolt11 mismatch (different invoice)')
+              return
+            }
+          }
+
+          // 4. Extract and validate the zap request from the description tag
           const descriptionTag = event.tags.find((t) => t[0] === 'description')
+          let zapRequestAmount: number | undefined
+          if (descriptionTag?.[1]) {
+            try {
+              const zapRequest = JSON.parse(descriptionTag[1])
+              const amountTag = zapRequest.tags?.find((t: string[]) => t[0] === 'amount')
+              if (amountTag?.[1]) {
+                zapRequestAmount = parseInt(amountTag[1], 10)
+              }
+            } catch {
+              console.log('[NIP-57] Warning: could not parse zap request description')
+            }
+          }
+
+          // 5. Validate amount if present in zap request
+          if (zapRequestAmount !== undefined && amountMsat > 0) {
+            if (zapRequestAmount !== amountMsat) {
+              console.log('[NIP-57] Rejected: amount mismatch', zapRequestAmount, '!=', amountMsat)
+              return
+            }
+          }
+
+          // All validations passed — payment confirmed!
+          const preimageTag = event.tags.find((t) => t[0] === 'preimage')
 
           const zapReceipt: ZapReceipt = {
             id: event.id ?? '',
             pubkey: event.pubkey ?? '',
-            amount: amountTag ? parseInt(amountTag[1] ?? '0', 10) : 0,
-            bolt11: bolt11Tag?.[1],
+            amount: zapRequestAmount ?? amountMsat,
+            bolt11: receiptBolt11,
             preimage: preimageTag?.[1],
             description: descriptionTag?.[1],
             createdAt: event.created_at ?? Math.floor(Date.now() / 1000),
           }
+
+          console.log('[NIP-57] ✅ Payment confirmed via zap receipt:', zapReceipt.id)
 
           cleanup()
           setReceipt(zapReceipt)
@@ -100,10 +175,12 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
             navigator.vibrate([100, 50, 100])
           }
 
-          // Play sound
           playSuccessSound()
         })
-      } catch {
+
+        console.log('[NIP-57] Subscription active, waiting for zap receipts...')
+      } catch (err) {
+        console.error('[NIP-57] Error starting subscription:', err)
         cleanup()
         setStatus('error')
       }

@@ -212,12 +212,16 @@ export default function OrderPage({ params }: Props) {
       }
 
       // Build zap request if supported
+      // NIP-57: The zap request's `p` tag must be the recipient's pubkey
+      // The recipient is identified by merchantPubkey (their nostr pubkey) or
+      // we use the LNURL server's nostrPubkey as the recipient identifier
+      const recipientPubkey = merchantPubkey || lnurl.nostrPubkey
       let zapRequestEncoded: string | undefined
-      if (nip57Supported && lnurl.nostrPubkey && merchantPubkey) {
+      if (nip57Supported && recipientPubkey) {
         try {
           zapRequestEncoded = await createZapRequest({
             amount: milliSats,
-            recipientPubkey: lnurl.nostrPubkey,
+            recipientPubkey,
             relays: DEFAULT_RELAYS,
             content: `POS payment — order ${orderId}`,
           })
@@ -251,9 +255,17 @@ export default function OrderPage({ params }: Props) {
         startVerifyPolling(invoiceVerifyUrl, sats)
       }
 
-      // Start NIP-57 payment subscription
-      if (lnurl.nostrPubkey) {
-        await startWaiting(lnurl.nostrPubkey, TIMEOUT_SECS * 1000)
+      // Start NIP-57 zap receipt subscription
+      // Subscribe for kind:9735 events with #p matching the recipient
+      // Validate that the receipt is signed by the LNURL server's nostrPubkey
+      if (recipientPubkey && lnurl.nostrPubkey) {
+        await startWaiting({
+          recipientPubkey,
+          lnurlNostrPubkey: lnurl.nostrPubkey,
+          bolt11: bolt11,
+          amountMsat: milliSats,
+          timeoutMs: TIMEOUT_SECS * 1000,
+        })
       }
 
       // Start NFC if available
