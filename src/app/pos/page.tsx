@@ -226,8 +226,22 @@ export default function POSPage() {
               <button
                 key={c}
                 onClick={() => {
+                  if (c === selectedCurrency) return
+                  if (cents > 0) {
+                    // Convert current amount to new currency
+                    const currentAmount = selectedCurrency === 'SAT' ? cents : cents / 100
+                    const converted = convert(currentAmount, selectedCurrency, c)
+                    if (converted > 0) {
+                      if (c === 'SAT') {
+                        setCents(Math.round(converted))
+                      } else {
+                        setCents(Math.round(converted * 100))
+                      }
+                    } else {
+                      setCents(0)
+                    }
+                  }
                   setSelectedCurrency(c)
-                  setCents(0)
                 }}
                 className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   c === selectedCurrency
