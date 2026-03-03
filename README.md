@@ -1,6 +1,6 @@
 # ⚡ Lightning POS
 
-**Bitcoin Lightning Point of Sale powered by Nostr (NIP-15)**
+**Bitcoin Lightning Point of Sale powered by Nostr**
 
 A mobile-first, open-source POS terminal for merchants who accept Bitcoin Lightning payments. Built on Nostr marketplace standards (NIP-15) with real-time payment confirmation via zaps (NIP-57).
 
