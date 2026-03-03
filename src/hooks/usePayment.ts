@@ -22,6 +22,7 @@ interface UsePaymentReturn {
   receipt: ZapReceipt | null
   startWaiting: (recipientPubkey: string, timeoutMs?: number) => void
   reset: () => void
+  forceConfirm: (receipt: ZapReceipt) => void
 }
 
 export function usePayment(orderId: string | null): UsePaymentReturn {
@@ -110,12 +111,22 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
     [orderId, cleanup]
   )
 
+  const forceConfirm = useCallback((zapReceipt: ZapReceipt) => {
+    cleanup()
+    setReceipt(zapReceipt)
+    setStatus('confirmed')
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate([100, 50, 100])
+    }
+    playSuccessSound()
+  }, [cleanup])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => cleanup()
   }, [cleanup])
 
-  return { status, receipt, startWaiting, reset }
+  return { status, receipt, startWaiting, reset, forceConfirm }
 }
 
 function playSuccessSound() {

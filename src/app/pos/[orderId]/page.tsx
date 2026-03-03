@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, use } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
-import { CheckCircle, Copy, Printer, RotateCcw, Wifi, WifiOff, X } from 'lucide-react'
+import { CheckCircle, Copy, Printer, RefreshCw, RotateCcw, Wifi, WifiOff, X } from 'lucide-react'
 import Navbar from '@/components/shared/Navbar'
 import { usePOSStore } from '@/stores/pos'
 import { useNostrStore } from '@/stores/nostr'
@@ -83,9 +83,11 @@ export default function OrderPage({ params }: Props) {
     nostrPubkey?: string
     allowsNostr?: boolean
   } | null>(null)
+  const [verifyUrl, setVerifyUrl] = useState<string | null>(null)
+  const [forceChecking, setForceChecking] = useState(false)
 
   // Hooks
-  const { status: payStatus, receipt, startWaiting, reset: resetPayment } = usePayment(orderId)
+  const { status: payStatus, receipt, startWaiting, reset: resetPayment, forceConfirm } = usePayment(orderId)
   const { isAvailable: nfcAvailable, isReading: nfcReading, startReading, stopReading } = useNFC()
   const { isPrintAvailable, print } = usePrint()
 
@@ -203,6 +205,7 @@ export default function OrderPage({ params }: Props) {
 
       const bolt11 = invoiceData.pr as string
       setInvoice(bolt11)
+      if (invoiceData.verify) setVerifyUrl(invoiceData.verify as string)
       setPageState('ready')
 
       // Start payment subscription
@@ -255,6 +258,40 @@ export default function OrderPage({ params }: Props) {
       stopReading()
     }
   }, [payStatus, stopReading])
+
+  // Force check payment via LUD-21 verify
+  const forceCheck = useCallback(async () => {
+    if (forceChecking) return
+    setForceChecking(true)
+    try {
+      if (verifyUrl) {
+        // LUD-21: use verify URL from invoice response
+        const res = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verify: verifyUrl }),
+        })
+        const data = await res.json()
+        if (data.settled) {
+          stopReading()
+          forceConfirm({
+            id: 'verify-' + Date.now(),
+            pubkey: '',
+            amount: amountSats * 1000,
+            preimage: data.preimage || undefined,
+            createdAt: Math.floor(Date.now() / 1000),
+          })
+          showSuccess('¡Pago verificado!')
+          return
+        }
+      }
+      showWarning('Pago aún no detectado')
+    } catch {
+      showError('Error al verificar el pago')
+    } finally {
+      setForceChecking(false)
+    }
+  }, [forceChecking, verifyUrl, amountSats, stopReading, forceConfirm])
 
   // Copy invoice
   const copyInvoice = useCallback(() => {
@@ -459,6 +496,16 @@ export default function OrderPage({ params }: Props) {
           <div className="w-2 h-2 rounded-full bg-[#f7931a] animate-pulse" />
           <p className="text-sm">Esperando pago...</p>
         </div>
+
+        {/* Force Check */}
+        <button
+          onClick={forceCheck}
+          disabled={forceChecking}
+          className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-[#0f1729] px-5 py-2.5 text-sm text-zinc-400 hover:border-[#f7931a]/50 hover:text-[#f7931a] active:bg-[#0f1729]/80 transition disabled:opacity-50"
+        >
+          <RefreshCw size={14} className={forceChecking ? 'animate-spin' : ''} />
+          {forceChecking ? 'Verificando...' : 'Verificar pago'}
+        </button>
 
         {/* NFC indicator */}
         {nfcAvailable && (

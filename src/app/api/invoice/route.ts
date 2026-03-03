@@ -11,6 +11,7 @@ interface InvoiceRequest {
 interface InvoiceResponse {
   pr: string
   routes?: unknown[]
+  verify?: string
 }
 
 const CORS_HEADERS = {
@@ -115,6 +116,7 @@ export async function POST(request: Request) {
     invoiceData = {
       pr: data.pr,
       routes: Array.isArray(data.routes) ? data.routes : [],
+      ...(data.verify && typeof data.verify === 'string' ? { verify: data.verify } : {}),
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
