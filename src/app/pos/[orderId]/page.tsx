@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, use } from 'react'
+import { useEffect, useState, useCallback, useRef, use } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 import { CheckCircle, Copy, Printer, RefreshCw, RotateCcw, Wifi, WifiOff, X } from 'lucide-react'
@@ -85,6 +85,42 @@ export default function OrderPage({ params }: Props) {
   } | null>(null)
   const [verifyUrl, setVerifyUrl] = useState<string | null>(null)
   const [forceChecking, setForceChecking] = useState(false)
+  const verifyIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // LUD-21 verify polling
+  const stopVerifyPolling = useCallback(() => {
+    if (verifyIntervalRef.current) {
+      clearInterval(verifyIntervalRef.current)
+      verifyIntervalRef.current = null
+    }
+  }, [])
+
+  const startVerifyPolling = useCallback((url: string, sats: number) => {
+    stopVerifyPolling()
+    verifyIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ verify: url }),
+        })
+        const data = await res.json()
+        if (data.settled) {
+          stopVerifyPolling()
+          forceConfirm({
+            id: 'verify-poll-' + Date.now(),
+            pubkey: '',
+            amount: sats * 1000,
+            preimage: data.preimage || undefined,
+            createdAt: Math.floor(Date.now() / 1000),
+          })
+          showSuccess('¡Pago verificado!')
+        }
+      } catch {
+        // Silent fail — will retry next interval
+      }
+    }, 3000) // Poll every 3 seconds
+  }, [stopVerifyPolling, forceConfirm])
 
   // Hooks
   const { status: payStatus, receipt, startWaiting, reset: resetPayment, forceConfirm } = usePayment(orderId)
@@ -205,10 +241,16 @@ export default function OrderPage({ params }: Props) {
 
       const bolt11 = invoiceData.pr as string
       setInvoice(bolt11)
-      if (invoiceData.verify) setVerifyUrl(invoiceData.verify as string)
+      const invoiceVerifyUrl = invoiceData.verify as string | undefined
+      if (invoiceVerifyUrl) setVerifyUrl(invoiceVerifyUrl)
       setPageState('ready')
 
-      // Start payment subscription
+      // Start LUD-21 verify polling (every 3 seconds) if verify URL available
+      if (invoiceVerifyUrl) {
+        startVerifyPolling(invoiceVerifyUrl, sats)
+      }
+
+      // Start NIP-57 payment subscription
       if (lnurl.nostrPubkey) {
         await startWaiting(lnurl.nostrPubkey, TIMEOUT_SECS * 1000)
       }
@@ -248,16 +290,23 @@ export default function OrderPage({ params }: Props) {
     if (pageState === 'ready' && timeRemaining === 0) {
       setPageState('expired')
       stopReading()
+      stopVerifyPolling()
       showWarning('El invoice expiró')
     }
-  }, [timeRemaining, pageState, stopReading])
+  }, [timeRemaining, pageState, stopReading, stopVerifyPolling])
 
   // Handle payment confirmed
   useEffect(() => {
     if (payStatus === 'confirmed') {
       stopReading()
+      stopVerifyPolling()
     }
-  }, [payStatus, stopReading])
+  }, [payStatus, stopReading, stopVerifyPolling])
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => stopVerifyPolling()
+  }, [stopVerifyPolling])
 
   // Force check payment via LUD-21 verify
   const forceCheck = useCallback(async () => {
