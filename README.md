@@ -40,9 +40,9 @@ A mobile-first, open-source POS terminal for merchants who accept Bitcoin Lightn
 ```bash
 git clone https://github.com/lacrypta/lightning-pos.git
 cd lightning-pos
-npm install
+pnpm install
 cp .env.example .env.local
-npm run dev
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) and configure your Lightning Address in Settings.
