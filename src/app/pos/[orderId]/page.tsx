@@ -87,6 +87,9 @@ export default function OrderPage({ params }: Props) {
   const [forceChecking, setForceChecking] = useState(false)
   const verifyIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Hooks
+  const { status: payStatus, receipt, startWaiting, reset: resetPayment, forceConfirm } = usePayment(orderId)
+
   // LUD-21 verify polling
   const stopVerifyPolling = useCallback(() => {
     if (verifyIntervalRef.current) {
@@ -119,11 +122,9 @@ export default function OrderPage({ params }: Props) {
       } catch {
         // Silent fail — will retry next interval
       }
-    }, 3000) // Poll every 3 seconds
+    }, 3000)
   }, [stopVerifyPolling, forceConfirm])
 
-  // Hooks
-  const { status: payStatus, receipt, startWaiting, reset: resetPayment, forceConfirm } = usePayment(orderId)
   const { isAvailable: nfcAvailable, isReading: nfcReading, startReading, stopReading } = useNFC()
   const { isPrintAvailable, print } = usePrint()
 
