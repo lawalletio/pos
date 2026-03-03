@@ -133,7 +133,7 @@ export default function POSPage() {
       {/* ── Navbar ── */}
       <nav className="flex items-center justify-between px-4 pt-3 pb-2 flex-shrink-0">
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push('/')}
           className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 transition"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
