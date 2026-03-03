@@ -17,11 +17,11 @@ export interface ZapReceipt {
 }
 
 export interface StartWaitingParams {
-  /** Recipient's pubkey (the merchant being paid) — used in #p filter */
-  recipientPubkey: string
+  /** The random event ID from the zap request #e tag — used to filter the exact zap receipt */
+  zapEventId: string
   /** The LNURL server's nostrPubkey — zap receipts must be signed by this key */
   lnurlNostrPubkey: string
-  /** The bolt11 invoice — used to match the exact payment */
+  /** The bolt11 invoice — used for extra validation */
   bolt11: string
   /** Amount in millisats — used for validation */
   amountMsat: number
@@ -63,7 +63,7 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
   const startWaiting = useCallback(
     (params: StartWaitingParams) => {
       const {
-        recipientPubkey,
+        zapEventId,
         lnurlNostrPubkey,
         bolt11,
         amountMsat,
@@ -83,17 +83,18 @@ export function usePayment(orderId: string | null): UsePaymentReturn {
       }, timeoutMs)
 
       console.log('[NIP-57] Starting zap receipt detection:', {
-        recipientPubkey: recipientPubkey.slice(0, 12) + '...',
+        zapEventId: zapEventId.slice(0, 12) + '...',
         lnurlNostrPubkey: lnurlNostrPubkey.slice(0, 12) + '...',
         amountMsat,
         bolt11: bolt11.slice(0, 30) + '...',
         relays: DEFAULT_RELAYS,
       })
 
-      // NIP-01 filter for kind:9735 zap receipts tagged with the recipient
+      // Subscribe for kind:9735 with #e matching our random zap event ID
+      // This is the most precise filter — only matches our exact payment
       const filter = {
         kinds: [9735],
-        '#p': [recipientPubkey],
+        '#e': [zapEventId],
         since: Math.floor(Date.now() / 1000) - 10,
       }
 

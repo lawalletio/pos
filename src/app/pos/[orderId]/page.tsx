@@ -217,14 +217,17 @@ export default function OrderPage({ params }: Props) {
       // we use the LNURL server's nostrPubkey as the recipient identifier
       const recipientPubkey = merchantPubkey || lnurl.nostrPubkey
       let zapRequestEncoded: string | undefined
+      let zapEventId: string | undefined
       if (nip57Supported && recipientPubkey) {
         try {
-          zapRequestEncoded = await createZapRequest({
+          const zapResult = await createZapRequest({
             amount: milliSats,
             recipientPubkey,
             relays: DEFAULT_RELAYS,
             content: `POS payment — order ${orderId}`,
           })
+          zapRequestEncoded = zapResult.encoded
+          zapEventId = zapResult.zapEventId
         } catch {
           // non-fatal — proceed without zap request
         }
@@ -256,11 +259,11 @@ export default function OrderPage({ params }: Props) {
       }
 
       // Start NIP-57 zap receipt subscription
-      // Subscribe for kind:9735 events with #p matching the recipient
-      // Validate that the receipt is signed by the LNURL server's nostrPubkey
-      if (recipientPubkey && lnurl.nostrPubkey) {
-        await startWaiting({
-          recipientPubkey,
+      // Subscribe for kind:9735 with #e matching our random zapEventId
+      // This precisely matches only the zap receipt for THIS payment
+      if (zapEventId && lnurl.nostrPubkey) {
+        startWaiting({
+          zapEventId,
           lnurlNostrPubkey: lnurl.nostrPubkey,
           bolt11: bolt11,
           amountMsat: milliSats,

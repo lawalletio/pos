@@ -1,19 +1,32 @@
-import { generateSecretKey, getPublicKey, finalizeEvent } from 'nostr-tools'
+import { generateSecretKey, finalizeEvent } from 'nostr-tools'
+import { bytesToHex } from '@noble/hashes/utils'
 
 export interface ZapRequestParams {
   amount: number // in millisats
   recipientPubkey: string
   relays: string[]
   content?: string
-  eventId?: string
+}
+
+export interface ZapRequestResult {
+  /** URL-encoded JSON of the signed zap request event */
+  encoded: string
+  /** The random hex event ID used in the #e tag — use this to subscribe for the zap receipt */
+  zapEventId: string
 }
 
 /**
- * Creates a NIP-57 zap request (kind:9734) and returns it as a URL-encoded JSON string
- * suitable for use as the `nostr` param in LNURL callback.
+ * Creates a NIP-57 zap request (kind:9734) with a random #e tag for precise receipt matching.
+ * Returns the encoded event and the zapEventId to subscribe for.
  */
-export async function createZapRequest(params: ZapRequestParams): Promise<string> {
-  const { amount, recipientPubkey, relays, content = '', eventId } = params
+export async function createZapRequest(params: ZapRequestParams): Promise<ZapRequestResult> {
+  const { amount, recipientPubkey, relays, content = '' } = params
+
+  // Generate a random 32-byte hex ID for the #e tag
+  // This allows subscribing for the exact zap receipt with #e filter
+  const randomBytes = new Uint8Array(32)
+  crypto.getRandomValues(randomBytes)
+  const zapEventId = bytesToHex(randomBytes)
 
   // Use NIP-07 if available, otherwise use ephemeral key
   const useNip07 =
@@ -23,13 +36,10 @@ export async function createZapRequest(params: ZapRequestParams): Promise<string
 
   const tags: string[][] = [
     ['p', recipientPubkey],
+    ['e', zapEventId],
     ['amount', String(amount)],
     ['relays', ...relays],
   ]
-
-  if (eventId) {
-    tags.push(['e', eventId])
-  }
 
   const eventTemplate = {
     kind: 9734,
@@ -45,20 +55,21 @@ export async function createZapRequest(params: ZapRequestParams): Promise<string
       const nip07 = ((window as unknown) as { nostr: { signEvent: (e: typeof eventTemplate) => Promise<ReturnType<typeof finalizeEvent>> } }).nostr
       signedEvent = await nip07.signEvent(eventTemplate)
     } catch {
-      // Fall back to ephemeral key
       signedEvent = signWithEphemeralKey(eventTemplate)
     }
   } else {
     signedEvent = signWithEphemeralKey(eventTemplate)
   }
 
-  return encodeURIComponent(JSON.stringify(signedEvent))
+  return {
+    encoded: encodeURIComponent(JSON.stringify(signedEvent)),
+    zapEventId,
+  }
 }
 
 function signWithEphemeralKey(
   eventTemplate: { kind: number; created_at: number; tags: string[][]; content: string }
 ): ReturnType<typeof finalizeEvent> {
   const sk = generateSecretKey()
-  // finalizeEvent adds pubkey automatically from the secret key
   return finalizeEvent(eventTemplate, sk)
 }
