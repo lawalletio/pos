@@ -1,5 +1,4 @@
 import { generateSecretKey, finalizeEvent } from 'nostr-tools'
-import { bytesToHex } from '@noble/hashes/utils'
 
 export interface ZapRequestParams {
   amount: number // in millisats
@@ -25,8 +24,8 @@ export async function createZapRequest(params: ZapRequestParams): Promise<ZapReq
   // Generate a random 32-byte hex ID for the #e tag
   // This allows subscribing for the exact zap receipt with #e filter
   const randomBytes = new Uint8Array(32)
-  crypto.getRandomValues(randomBytes)
-  const zapEventId = bytesToHex(randomBytes)
+  globalThis.crypto.getRandomValues(randomBytes)
+  const zapEventId = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('')
 
   // Use NIP-07 if available, otherwise use ephemeral key
   const useNip07 =
@@ -62,7 +61,8 @@ export async function createZapRequest(params: ZapRequestParams): Promise<ZapReq
   }
 
   return {
-    encoded: encodeURIComponent(JSON.stringify(signedEvent)),
+    // Return raw JSON string — the API route's searchParams.set handles URL encoding
+    encoded: JSON.stringify(signedEvent),
     zapEventId,
   }
 }

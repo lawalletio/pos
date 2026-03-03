@@ -234,7 +234,9 @@ export default function OrderPage({ params }: Props) {
           })
           zapRequestEncoded = zapResult.encoded
           zapEventId = zapResult.zapEventId
-        } catch {
+          console.log('[POS] Zap request created, zapEventId:', zapEventId.slice(0, 16) + '...')
+        } catch (err) {
+          console.error('[POS] Failed to create zap request:', err)
           // non-fatal — proceed without zap request
         }
       }
@@ -264,10 +266,18 @@ export default function OrderPage({ params }: Props) {
         startVerifyPolling(invoiceVerifyUrl, sats)
       }
 
+      console.log('[POS] Invoice ready:', {
+        bolt11: bolt11.slice(0, 30) + '...',
+        verify: invoiceVerifyUrl ? 'yes' : 'no',
+        zapEventId: zapEventId?.slice(0, 16) || 'none',
+        nip57: !!(zapEventId && lnurl.nostrPubkey),
+      })
+
       // Start NIP-57 zap receipt subscription
       // Subscribe for kind:9735 with #e matching our random zapEventId
       // This precisely matches only the zap receipt for THIS payment
       if (zapEventId && lnurl.nostrPubkey) {
+        console.log('[POS] Starting NIP-57 subscription for #e:', zapEventId.slice(0, 16) + '...')
         startWaiting({
           zapEventId,
           lnurlNostrPubkey: lnurl.nostrPubkey,
