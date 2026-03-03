@@ -139,7 +139,7 @@ export default function SetupPage() {
 
       {/* Footer */}
       <footer className="fixed bottom-3 left-0 right-0 text-center">
-        <p className="text-[11px] text-zinc-500 font-mono">v0.1.0 · NIP-15 · La Crypta</p>
+        <p className="text-[11px] text-zinc-500 font-mono">v{process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0'} · NIP-15 · La Crypta</p>
       </footer>
     </main>
   )
